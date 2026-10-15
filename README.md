@@ -2,7 +2,7 @@
 
 Proyecto **estudiantil, sin fines de lucro**, hecho con [p5.js](https://p5js.org/).
 No está afiliado, patrocinado ni respaldado por ibisPaint; el logo y la marca pertenecen a sus
-respectivos dueños y aquí se usan solo como material de un ejercicio de programación creativa.
+respectivos dueños y aquí se usan solo como material de un ejercicio de programación creativa..
 (El aviso también aparece en la página, en `index.html` y en la cabecera de `js/sketch.js`.)
 
 El logo aparece en el centro de un lienzo blanco. Las letras de **Paint** son herramientas que se arrastran:
