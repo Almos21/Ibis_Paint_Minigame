@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>ibis·Paint — juego estudiantil</title>
+  <meta name="description" content="Proyecto estudiantil en p5.js: las letras del logo de ibisPaint como herramientas de dibujo y un ibis que camina sobre tus líneas. No afiliado a ibisPaint.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23fff' stroke='%23000' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23f3b318'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!--
+    PROYECTO ESTUDIANTIL SIN FINES DE LUCRO.
+    No afiliado, patrocinado ni respaldado por ibisPaint. El logo y la marca
+    pertenecen a sus respectivos dueños.
+  -->
+  <div id="stage"></div>
+
+  <nav id="bar" aria-label="Controles">
+    <label class="grp">Pincel <input id="size" type="range" min="2" max="40" value="6" aria-label="Grosor del pincel"></label>
+    <button id="btn-pen" title="Mayús o clic derecho mientras arrastras la i: mover sin dibujar">Pluma: dibuja</button>
+    <button id="btn-undo" title="Ctrl+Z" aria-label="Deshacer">↶</button>
+    <button id="btn-clear">Limpiar</button>
+    <button id="btn-help" aria-label="Ayuda">?</button>
+  </nav>
+
+  <div id="intro" class="card">
+    <p><b>Arrastra las letras de «Paint»:</b></p>
+    <ul>
+      <li><b>P</b> paleta de colores</li>
+      <li><b>i</b> pincel: su puntico es la punta; pásalo sobre la P para elegir color</li>
+      <li><b>a</b> altera una línea con un efecto al azar</li>
+      <li><b>n</b> borra · <b>t</b> agarra y mueve una línea</li>
+    </ul>
+    <p class="soon">«ibis» se queda quieto por ahora: pronto se convertirá en pájaro.</p>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <section id="help" class="card" role="dialog" aria-label="Ayuda">
+    <h2>Cómo se juega</h2>
+    <table>
+      <tr><th>P</th><td>Paleta. Con el puntico de la <b>i</b> encima de un color, lo eliges. También puedes tocar un color con un clic.</td></tr>
+      <tr><th>i</th><td>Pincel: arrástala y dibuja. <kbd>Mayús</kbd> o clic derecho (o el botón «Pluma») para moverla sin dibujar. Si la agarras y la llevas enseguida a la P para elegir color, no deja rastro. Rueda del ratón o <kbd>[</kbd> <kbd>]</kbd> cambian el grosor.</td></tr>
+      <tr><th>a</th><td>Suéltala encima de una línea y le pone un efecto al azar (onda, neón, goteo, rizos…).</td></tr>
+      <tr><th>n</th><td>Borrador: borra lo que la letra toca.</td></tr>
+      <tr><th>t</th><td>Arrástala sobre una línea para agarrarla y moverla; al soltar, la deja.</td></tr>
+      <tr><th>↶</th><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace.</td></tr>
+    </table>
+    <p class="fine">Proyecto estudiantil sin fines de lucro, hecho con p5.js. No está afiliado ni respaldado por ibisPaint; el logo y la marca pertenecen a sus dueños.</p>
+    <button id="help-close" class="primary">Entendido</button>
+  </section>
+
+  <script src="lib/p5.min.js"></script>
+  <script src="js/glyphs.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/strokes.js"></script>
+  <script src="js/letters.js"></script>
+  <script src="js/bird.js"></script>
+  <script src="js/sketch.js"></script>
+</body>
+</html>
