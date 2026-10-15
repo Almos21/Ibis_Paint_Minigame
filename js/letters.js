@@ -18,6 +18,8 @@ class Letter {
     this.dotColor = null;     // color del puntico (la i-pincel)
     this.eyeY = 1;            // parpadeo del ojo (la i-cabeza del pájaro)
     this.markColor = null;    // segmento de la P que se resalta
+    this.glow = 0;            // 0..1: brillo de invitación (ver ATTN en sketch.js)
+    this.glowColor = null;
     this.tween = null;
   }
 
@@ -90,6 +92,16 @@ class Letter {
       ctx.shadowOffsetY = 7 * this.lift * dpr;
     }
     const inv = 1 / Math.abs(this.scl);
+    if (this.glow > 0.01 && this.glowColor && this.lift < 0.05) {
+      // aura de color detrás de la letra (la silueta de color queda tapada por la letra negra)
+      ctx.save();
+      ctx.fillStyle = this.glowColor; ctx.shadowColor = this.glowColor;
+      for (const [blur, alpha] of [[64, 0.75], [26, 1]]) {
+        ctx.shadowBlur = blur * this.glow * dpr; ctx.globalAlpha = alpha * Math.min(1, this.glow * 1.2);
+        for (const p of this.parts) ctx.fill(p.path);
+      }
+      ctx.restore();
+    }
     if (this.segs) {
       for (const s of this.segs) {
         ctx.fillStyle = s.color; ctx.fill(s.path);

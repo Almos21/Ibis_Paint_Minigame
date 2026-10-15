@@ -26,7 +26,23 @@ const S = {
   drag: null,
   particles: [],
   touched: false,
+  nextPulse: 1.4,
   U: 1,
+};
+// Sin pistas: la persona descubre todo sola. Pon SHOW_HINTS = true para ver avisos de texto mientras desarrollas.
+const SHOW_HINTS = false;
+
+// Brillo que invita a tocar las letras de «Paint» (al inicio y cuando pasa un rato sin tocarlas)
+const ATTN = {
+  ids: ['P', 'a', 'i3', 'n', 't'],
+  colors: ['#e6511d', '#f3b318', '#21af20', '#229fe1', '#a632b5'],  // una ola de arcoíris por la palabra
+  first: 1.4,     // s hasta el primer destello
+  idle: 10,       // s sin tocar nada para que vuelva a destellar
+  dur: 1.7,       // s que dura el brillo de cada letra
+  stagger: 0.17,  // s de retraso entre una letra y la siguiente
+  waves: 2,       // olas por destello
+  gap: 1.2,       // s entre olas
+  t0: -1,
 };
 const IBIS_IDS = ['i1', 'b', 'i2', 's'];
 const isIbis = (id) => IBIS_IDS.includes(id);
@@ -64,6 +80,7 @@ function draw() {
     l.updateTween(now);
     l.lift = approach(l.lift, S.drag && S.drag.letter === l && S.drag.moved ? 1 : 0, 14, dt);
   }
+  updateAttention(now, dt);
   Bird.update(dt, now);
   updateParticles(dt);
 
@@ -151,9 +168,31 @@ function drawParticles(ctx) {
   ctx.globalAlpha = 1;
 }
 
+/* ================================================================= brillo de invitación */
+function noteActivity() { S.nextPulse = NOW + ATTN.idle; ATTN.t0 = -1; }
+
+function updateAttention(now, dt) {
+  const A = ATTN, total = (A.waves - 1) * A.gap + (A.ids.length - 1) * A.stagger + A.dur;
+  if (S.drag) { A.t0 = -1; S.nextPulse = now + A.idle; }
+  else if (A.t0 < 0 && now >= S.nextPulse) A.t0 = now;
+  else if (A.t0 >= 0 && now - A.t0 > total) { A.t0 = -1; S.nextPulse = now + A.idle; }
+  A.ids.forEach((id, k) => {
+    let g = 0;
+    if (A.t0 >= 0) {
+      for (let w = 0; w < A.waves; w++) {
+        const u = (now - A.t0 - w * A.gap - k * A.stagger) / A.dur;
+        if (u > 0 && u < 1) g = Math.max(g, Math.pow(Math.sin(Math.PI * u), 2));
+      }
+    }
+    const l = S.letters[id];
+    l.glowColor = A.colors[k];
+    l.glow = approach(l.glow, g, g > l.glow ? 30 : 9, dt);
+  });
+}
+
 /* ================================================================= logo */
 function layoutLogo() {
-  const U = Math.min((VW * (VW < 700 ? 0.92 : 0.74)) / LOGO.w, (VH * 0.44) / LOGO.h);
+  const U = Math.min((VW * (VW < 700 ? 0.8 : 0.54)) / LOGO.w, (VH * 0.3) / LOGO.h);
   S.U = U;
   const ox = (VW - LOGO.w * U) / 2, oy = (VH - LOGO.h * U) / 2 - VH * 0.03;
   for (const l of Object.values(S.letters)) {
@@ -213,7 +252,7 @@ function onDown(e) {
   const x = e.clientX, y = e.clientY, l = pickLetter(x, y, e.pointerType === 'mouse' ? 8 : 18);
   if (!l) return;
   e.target.setPointerCapture(e.pointerId);
-  S.touched = true;
+  S.touched = true; noteActivity();
   S.order.splice(S.order.indexOf(l.id), 1); S.order.push(l.id);
   S.drag = { letter: l, id: l.id, pid: e.pointerId, ox: x - l.x, oy: y - l.y, sx: x, sy: y, moved: false, cur: null, carry: null, target: null, penUp: e.button === 2, undone: false, lastTip: null };
   e.target.style.cursor = 'grabbing';
@@ -230,7 +269,7 @@ function onMove(e) {
 function dragTo(x, y) {
   const D = S.drag, l = D.letter;
   if (!D.moved && Math.hypot(x - D.sx, y - D.sy) < 4) return; // distingue clic de arrastre
-  D.moved = true;
+  D.moved = true; noteActivity();
   // para la i-pincel se limita la PUNTA (el puntico), no el centro: así puede dibujar hasta el borde
   const tipDy = D.id === 'i3' ? (l.def.dot.cy - l.pivot[1]) * l.scl : 0;
   const tx = clamp(x - D.ox, 10, VW - 10), ty = clamp(y - D.oy + tipDy, 8, VH - 8) - tipDy;
@@ -266,7 +305,7 @@ function onUp(e) {
   }
   if (D.cur && D.cur.n < 2) { S.strokes.splice(S.strokes.indexOf(D.cur), 1); S.undo.pop(); }
   if (D.carry) { D.carry.live = false; layerDirty = true; }
-  S.drag = null;
+  S.drag = null; noteActivity();
   e.target.style.cursor = 'default';
 }
 
@@ -413,7 +452,7 @@ function onKeyUp(e) {
 let toastTimer = 0;
 function toast(msg, ms = 2400) {
   const el = document.getElementById('toast');
-  if (!el) return;
+  if (!SHOW_HINTS || !el) return;
   el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
@@ -424,17 +463,12 @@ function toggleHelp(force) {
 }
 
 function bindUI() {
+  // La barra de herramientas ya no existe en la página; esto solo conecta lo que haya (ayuda con la tecla H).
   const $ = (id) => document.getElementById(id);
-  const click = (id, fn) => $(id).addEventListener('click', (e) => { fn(); e.currentTarget.blur(); });
-  click('btn-pen', () => {
-    S.brush.penDown = !S.brush.penDown;
-    $('btn-pen').textContent = S.brush.penDown ? 'Pluma: dibuja' : 'Pluma: solo mueve';
-    $('btn-pen').classList.toggle('off', !S.brush.penDown);
-  });
+  const click = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', (e) => { fn(); e.currentTarget.blur(); }); };
+  click('btn-pen', () => { S.brush.penDown = !S.brush.penDown; });
   click('btn-undo', undo);
   click('btn-clear', clearAll);
   click('btn-help', () => toggleHelp());
   click('help-close', () => toggleHelp(false));
-  $('size').addEventListener('input', (e) => { S.brush.w = +e.target.value; });
-  $('size').addEventListener('change', (e) => e.target.blur());
 }

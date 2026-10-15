@@ -2,7 +2,7 @@
 
 Proyecto **estudiantil, sin fines de lucro**, hecho con [p5.js](https://p5js.org/).
 No está afiliado, patrocinado ni respaldado por ibisPaint; el logo y la marca pertenecen a sus
-respectivos dueños y aquí se usan solo como material de un ejercicio de programación creativa..
+respectivos dueños y aquí se usan solo como material de un ejercicio de programación creativa.
 (El aviso también aparece en la página, en `index.html` y en la cabecera de `js/sketch.js`.)
 
 El logo aparece en el centro de un lienzo blanco. Las letras de **Paint** son herramientas que se arrastran:
@@ -15,7 +15,12 @@ El logo aparece en el centro de un lienzo blanco. Las letras de **Paint** son he
 | **n** | Borrador: borra lo que la letra toca. |
 | **t** | Trasladar: arrástala sobre una línea para agarrarla y moverla; al soltar, la deja. |
 
-`Ctrl+Z` deshace · `H` o `?` abre la ayuda. Funciona con ratón y con pantalla táctil.
+`Ctrl+Z` deshace · `H` o `?` abre una ayuda oculta. Funciona con ratón y con pantalla táctil.
+
+**La página no da pistas a propósito**: no hay barra de herramientas ni instrucciones al entrar; la persona lo descubre sola.
+Para invitarla a tocar, las letras de «Paint» hacen un brillo de colores (una ola P → a → i → n → t) al inicio y de nuevo
+cada vez que pasan 10 s sin que se toque nada. Se ajusta en `ATTN` (`js/sketch.js`). Para ver avisos de texto mientras
+desarrollas, pon `SHOW_HINTS = true` en ese mismo archivo.
 
 ## Publicar en GitHub Pages
 
