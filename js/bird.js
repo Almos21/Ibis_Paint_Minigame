@@ -18,7 +18,8 @@
      hopDist  largo de cada saltito        hopDur  segundos en el aire
      pause    descanso entre saltitos      hopH    altura del saltito
      stop     a qué distancia de la punta se detiene
-     flee     en vez de seguir la línea, HUYE de ella;  safe = a qué distancia se calma (en BH)   */
+     flee     en vez de seguir la línea, HUYE de ella;  safe = a qué distancia se calma (en BH)
+     float    en vez de saltar, flota: speed = velocidad en alturas por segundo   */
 const BEHAVIORS = {
   // amarillo: feliz, sigue SIEMPRE la punta del último trazo, saltando contento
   '#f2f31e': { id: 'feliz', hopDist: 0.45, hopDur: 0.30, pause: 0.05, hopH: 0.17, stop: 0.22, happy: true },
@@ -32,6 +33,12 @@ const BEHAVIORS = {
   '#df39a5': { id: 'enamorado', hopDist: 0.34, hopDur: 0.42, pause: 0.05, hopH: 0.13, stop: 0.22, love: true },
   // morado: asustado, huye de la línea (con sudor, ojos grandes y temblando)
   '#a632b5': { id: 'asustado', flee: true, hopDist: 0.75, hopDur: 0.26, pause: 0.04, hopH: 0.20, safe: 1.15, scared: true },
+  // azul oscuro: la sigue triste y lento, cabeceando
+  '#1c76c3': { id: 'triste', hopDist: 0.20, hopDur: 0.50, pause: 0.70, hopH: 0.05, stop: 0.22, sad: true },
+  // azul normal: la sigue "flotando" (sin saltos: se desliza en el aire, subiendo y bajando)
+  '#229fe1': { id: 'flotando', float: true, speed: 0.55, stop: 0.22 },
+  // celeste: huye de la línea, pero sin prisa; si la línea lo alcanza, se pone a brillar celeste intenso
+  '#16dcdb': { id: 'esquivo', flee: true, hopDist: 0.35, hopDur: 0.38, pause: 0.35, hopH: 0.12, safe: 0.9, shy: true, cyan: true },
 };
 const BEHAVIOR_IDLE = { id: 'quieto', idle: true };   // cualquier otro color (por ahora)
 
@@ -100,8 +107,9 @@ const Bird = {
   B: BEHAVIOR_IDLE, curColor: undefined, target: null, pendingReact: null, moving: false,
   a: { ...ZERO_ANIM },
   blinkNext: 0, blinkU: -1, eyeBase: 1,
-  fx: [], fxAcc: { smoke: 0, heart: 0, drop: 0 },   // humito, corazones, gotas de sudor...
-  spin: 0, near: null,
+  fx: [], fxAcc: { smoke: 0, heart: 0, drop: 0, tear: 0 },   // humito, corazones, gotas de sudor...
+  spin: 0, near: null, fv: { x: 0, y: 0 },   // fv = velocidad al flotar
+  glowOn: false, glowV: 0,                   // brillo del celeste cuando lo toca la línea
 
   get BH() { return BIRD_UNITS * this.baseS; },                      // altura "normal" en px
   get parts() { const L = S.letters; return [L.i1, L.b, L.s, L.i2]; }, // orden de dibujo
@@ -142,6 +150,7 @@ const Bird = {
     if (this.state !== 'alive') return;
     dt = Math.min(dt, 1 / 30);
     this.watch();
+    if (this.B.cyan) this.checkTouch();
     this.think(dt, now);
     this.animate(dt, now);
     this.emitFX(dt);
@@ -159,6 +168,7 @@ const Bird = {
     this.B = BEHAVIORS[col] || BEHAVIOR_IDLE;
     this.sizeT = 1; this.sizeTimer = 0;
     this.wait = 0;
+    this.glowOn = false;                          // el brillo desaparece al cambiar de color
     if (!first && col) this.pendingReact = col;   // un saltito de "¡ah, otro color!"
   },
 
@@ -176,7 +186,9 @@ const Bird = {
     const B = this.B, BH = this.BH;
     // ---- saltito en curso
     const H = this.hopSt;
-    if (H) {
+    if (B.float) {
+      this.thinkFloat(dt);
+    } else if (H) {
       H.t += dt;
       const u = clamp(H.t / H.dur, 0, 1);
       if (H.t > 0) { this.F.x = mix(H.x0, H.x1, u); this.F.y = mix(H.y0, H.y1, u); }
@@ -242,6 +254,44 @@ const Bird = {
     this.F.y = clamp(this.F.y, this.BH * this.sizeMul * 0.9, VH - 8);
   },
 
+  /** Flotando: sin saltos; se desliza suavemente hacia la punta (acelera y frena despacio). */
+  thinkFloat(dt) {
+    const B = this.B, BH = this.BH, m = this.sizeMul;
+    this.hopSt = null; this.pendingReact = null; this.landT = 0; this.near = null; this.moving = false;
+    let vx = 0, vy = 0;
+    if (this.target) {
+      const tx = clamp(this.target[0], 40, VW - 40), ty = clamp(this.target[1], BH * m * 0.95, VH - 8);
+      const dx = tx - this.F.x, dy = ty - this.F.y, dist = Math.hypot(dx, dy), stop = B.stop * BH;
+      if (dist > stop) {
+        this.moving = true;
+        const sp = B.speed * BH * clamp((dist - stop) / (BH * 0.9), 0.12, 1);
+        vx = (dx / dist) * sp; vy = (dy / dist) * sp;
+        if (Math.abs(dx) > 6) this.face = dx > 0 ? 1 : -1;
+      }
+    }
+    this.fv.x = approach(this.fv.x, vx, 3, dt); this.fv.y = approach(this.fv.y, vy, 3, dt);
+    this.F.x += this.fv.x * dt; this.F.y += this.fv.y * dt;
+  },
+
+  /** Celeste: ¿la línea (último trazo) tocó alguna parte del cuerpo? Entonces brilla hasta que cambie el color. */
+  checkTouch() {
+    if (this.glowOn) return;
+    const last = S.strokes[S.strokes.length - 1];
+    if (!last) return;
+    const BH = this.BH * this.sizeMul, pts = [[this.F.x, this.F.y - 0.05 * BH]];
+    for (const l of this.parts) pts.push([l.x, l.y]);
+    for (let i = 0; i < 4; i++) pts.push([(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2]);
+    const reach = last.w / 2 + 0.11 * BH;
+    for (const [x, y] of pts) {
+      const n = nearestOnStroke(last, x, y);
+      if (n && n.d < reach) {
+        this.glowOn = true;
+        puff(this.F.x, this.F.y - BH * 0.5, '#16dcdb', 14);
+        return;
+      }
+    }
+  },
+
   /** Asustado: salta lejos del punto de la línea más cercano (y se pega a las paredes lo menos posible). */
   flee(B) {
     const BH = this.BH, m = this.sizeMul, near = this.near;
@@ -269,12 +319,16 @@ const Bird = {
     const B = this.B, H = this.hopSt, a = this.a;
     const prep = !!H && H.t < 0, air = !!H && H.t >= 0;
     const u = air ? clamp(H.t / H.dur, 0, 1) : 0;
-    a.hop = air ? 4 * u * (1 - u) * H.h * BIRD_UNITS : 0;
+    const floatT = B.float ? 62 + 22 * Math.sin(now * 2.3) : 0;     // flotando: sobre el suelo, subiendo y bajando
+    if (air) a.hop = 4 * u * (1 - u) * H.h * BIRD_UNITS;
+    else a.hop = approach(a.hop, floatT, B.float ? 5 : 18, dt);
+    const vxn = clamp(this.fv.x / (this.BH * 0.6), -1, 1), fwd = vxn * this.face;
 
     // agacharse antes de saltar, estirarse en el aire, "aplastarse" al caer
-    const crouchT = prep ? 1 : air ? -0.3 : this.landT > 0 ? 0.9 : 0;
+    const crouchT = prep ? 1 : air ? -0.3 : this.landT > 0 ? 0.9 : B.sad ? 0.35 : 0;
     a.crouch = approach(a.crouch, crouchT * (B.angry ? 36 : 26), 24, dt);
-    a.leg = approach(a.leg, air ? 0.62 : 0, 20, dt);
+    const legT = air ? 0.62 : B.float ? 0.22 * Math.sin(now * 1.9) + 0.3 * fwd : 0;   // al flotar la patica cuelga y se arrastra
+    a.leg = approach(a.leg, legT, B.float ? 6 : 20, dt);
 
     const sway = Math.sin(now * 1.7);
     let bodyT = 0.012 * Math.sin(now * 2.1), neckT = 0.035 * sway, headT = 0.05 * Math.sin(now * 1.1 + 1), tiltT = 0;
@@ -295,6 +349,12 @@ const Bird = {
     if (B.scared) {                                   // asustado: cuello encogido hacia atrás
       neckT += -0.16; headT += -0.12;
     }
+    if (B.sad) { neckT += -0.14; headT = 0.12 + 0.26 * Math.sin(now * 1.8); }   // triste: cabecea despacito
+    if (B.float) {
+      bodyT += 0.035 * Math.sin(now * 1.5); neckT += 0.04 * Math.sin(now * 1.3 + 1); headT += 0.06 * Math.sin(now * 1.1);
+      tiltT = vxn * 0.14 + 0.03 * Math.sin(now * 1.3);                             // se inclina hacia donde flota
+    }
+    if (B.shy) neckT += -0.07;
     a.body = approach(a.body, bodyT, 14, dt);
     a.neck = approach(a.neck, neckT, 12, dt);
     a.head = approach(a.head, headT, 12, dt);
@@ -310,17 +370,25 @@ const Bird = {
 
     // ojo (el puntico de la i-cabeza): entrecerrado si está feliz o con sueño, enorme si se asusta; parpadea
     const eye = S.letters[BL.head.id];
-    const eyeT = B.scared ? 1.55 : B.happy ? 0.5 : B.sleepy ? 0.3 : B.angry ? 0.75 : 1;
+    const eyeT = B.scared ? 1.55 : B.happy ? 0.5 : B.sleepy ? 0.3 : B.angry ? 0.75 : B.sad ? 0.55 : B.shy ? 1.2 : 1;
     this.eyeBase = approach(this.eyeBase, eyeT, 10, dt);
     if (now > this.blinkNext) { this.blinkU = 0; this.blinkNext = now + (B.scared ? 4 : 2) + Math.random() * 3.5; }
     let blink = 1;
     if (this.blinkU >= 0) { this.blinkU += dt / 0.16; if (this.blinkU >= 1) this.blinkU = -1; else blink = 1 - Math.sin(this.blinkU * Math.PI) * 0.95; }
     eye.eyeY = clamp(this.eyeBase * blink, 0.06, 1.6);
-    eye.dotColor = B.angry ? '#e6511d' : B.love ? '#df39a5' : null;   // ojos rojos de rabia / rosados de amor
+    eye.dotColor = B.angry ? '#e6511d' : B.love ? '#df39a5' : this.glowV > 0.5 ? '#ffffff' : null;   // ojos rojos de rabia / rosados de amor
 
     // temblor (rabia y miedo)
     const amp = (B.scared ? 1.6 : B.angry ? 0.9 : 0) * this.sizeMul;
     const jx = amp ? (Math.random() - 0.5) * 2 * amp : 0, jy = amp ? (Math.random() - 0.5) * amp : 0;
+
+    // brillo celeste intenso: aura + las letras se vuelven celestes
+    this.glowV = approach(this.glowV, this.glowOn ? 0.92 + 0.08 * Math.sin(now * 6) : 0, this.glowOn ? 16 : 7, dt);
+    const gk = clamp(this.glowV, 0, 1);
+    for (const l of this.parts) {
+      l.glow = gk; l.glowColor = '#16dcdb'; l.glowBlurs = [[50, 0.9], [22, 1], [8, 1]];
+      l.tint = gk > 0.02 ? `rgb(${Math.round(mix(0, 24, gk))},${Math.round(mix(0, 236, gk))},${Math.round(mix(0, 234, gk))})` : null;
+    }
 
     const pose = birdPose(this, a);
     for (const part of ['leg', 'body', 'neck', 'head']) {
@@ -345,6 +413,10 @@ const Bird = {
       A.heart += dt * 3.4;
       while (A.heart >= 1) { A.heart -= 1; this.addHeart(e); }
     } else A.heart = 0;
+    if (B.sad) {                                       // una lagrimita que resbala del ojo
+      A.tear += dt * 0.9;
+      while (A.tear >= 1) { A.tear -= 1; this.fx.push({ k: 'drop', x: e.x, y: e.y + 2 * k, vx: this.face * 3, vy: 12, g: 90, age: 0, max: 1.6, size: 4.2 * Math.max(0.7, BH / 240) }); }
+    } else A.tear = 0;
     if (B.scared) {
       A.drop += dt * (this.moving ? 8 : 3.5);
       while (A.drop >= 1) {
@@ -372,7 +444,7 @@ const Bird = {
   updateFX(dt) {
     for (const p of this.fx) {
       p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
-      if (p.k === 'drop') p.vy += 300 * dt;
+      if (p.k === 'drop') p.vy += (p.g || 300) * dt;
       else if (p.k === 'smoke') { p.vx *= 0.99; p.vy *= 0.996; }
       else if (p.k === 'heart') p.x += Math.sin(p.age * 5 + p.ph) * 14 * dt;
     }

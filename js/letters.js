@@ -20,6 +20,8 @@ class Letter {
     this.markColor = null;    // segmento de la P que se resalta
     this.glow = 0;            // 0..1: brillo de invitación (ver ATTN en sketch.js)
     this.glowColor = null;
+    this.glowBlurs = null;    // [[desenfoque, opacidad], ...] (por defecto, el de las letras de Paint)
+    this.tint = null;         // color de relleno en vez del negro (el ibis brillante)
     this.tween = null;
   }
 
@@ -91,12 +93,12 @@ class Letter {
       ctx.shadowBlur = 16 * this.lift * dpr;
       ctx.shadowOffsetY = 7 * this.lift * dpr;
     }
-    const inv = 1 / Math.abs(this.scl);
+    const inv = 1 / Math.abs(this.scl), ink = this.tint || '#000';
     if (this.glow > 0.01 && this.glowColor && this.lift < 0.05) {
       // aura de color detrás de la letra (la silueta de color queda tapada por la letra negra)
       ctx.save();
       ctx.fillStyle = this.glowColor; ctx.shadowColor = this.glowColor;
-      for (const [blur, alpha] of [[64, 0.75], [26, 1]]) {
+      for (const [blur, alpha] of this.glowBlurs || [[64, 0.75], [26, 1]]) {
         ctx.shadowBlur = blur * this.glow * dpr; ctx.globalAlpha = alpha * Math.min(1, this.glow * 1.2);
         for (const p of this.parts) ctx.fill(p.path);
       }
@@ -114,11 +116,11 @@ class Letter {
         const d = this.def.dot, colored = this.dotColor && this.dotColor !== '#000000';
         ctx.save();
         if (Math.abs(this.eyeY - 1) > 0.001) { ctx.translate(d.cx, d.cy); ctx.scale(1, Math.max(0.06, this.eyeY)); ctx.translate(-d.cx, -d.cy); }
-        ctx.fillStyle = colored ? this.dotColor : '#000'; ctx.fill(p.path);
-        if (colored) { ctx.shadowColor = 'transparent'; ctx.lineWidth = 4.5 * inv; ctx.strokeStyle = '#000'; ctx.stroke(p.path); }
+        ctx.fillStyle = colored ? this.dotColor : ink; ctx.fill(p.path);
+        if (colored) { ctx.shadowColor = 'transparent'; ctx.lineWidth = 4.5 * inv; ctx.strokeStyle = ink; ctx.stroke(p.path); }
         ctx.restore();
       } else {
-        ctx.fillStyle = '#000'; ctx.fill(p.path);
+        ctx.fillStyle = ink; ctx.fill(p.path);
       }
     }
     ctx.shadowColor = 'transparent';
