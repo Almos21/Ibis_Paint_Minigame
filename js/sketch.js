@@ -10,7 +10,7 @@
      P  paleta (los colores del logo)      i  pincel (la punta es el puntico)
      a  alterar: efecto aleatorio en línea n  borrador
      t  trasladar: agarra y mueve una línea
-   Letras de «ibis» = pájaro (Enter) → fase 2, ver js/bird.js
+   Letras de «ibis» = pájaro: se arma al dibujar, al tocar «ibis» o con Enter (ver js/bird.js)
    ================================================================== */
 
 let VW = 0, VH = 0, NOW = 0, DPR = 1;
@@ -94,6 +94,10 @@ function draw() {
     if (S.drag.carry) drawHalo(ctx, S.drag.carry, '#2d9cff', now);
   }
 
+  if (Bird.busy) {
+    Bird.drawShadow(ctx);
+    for (const l of Bird.parts) l.draw(ctx, DPR);
+  }
   for (const id of S.order) {
     if (Bird.busy && isIbis(id)) continue;
     S.letters[id].draw(ctx, DPR);
@@ -251,6 +255,7 @@ function onDown(e) {
   hideIntro();
   const x = e.clientX, y = e.clientY, l = pickLetter(x, y, e.pointerType === 'mouse' ? 8 : 18);
   if (!l) return;
+  if (isIbis(l.id)) { Bird.wake(); noteActivity(); return; }   // tocar «ibis» despierta al pájaro
   e.target.setPointerCapture(e.pointerId);
   S.touched = true; noteActivity();
   S.order.splice(S.order.indexOf(l.id), 1); S.order.push(l.id);
@@ -260,7 +265,7 @@ function onDown(e) {
 
 function onMove(e) {
   const D = S.drag;
-  if (!D) { e.target.style.cursor = pickLetter(e.clientX, e.clientY, 8) ? 'grab' : 'default'; return; }
+  if (!D) { const hl = pickLetter(e.clientX, e.clientY, 8); e.target.style.cursor = hl ? (isIbis(hl.id) ? 'pointer' : 'grab') : 'default'; return; }
   if (e.pointerId !== D.pid) return;
   const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
   if (evs.length) for (const ev of evs) dragTo(ev.clientX, ev.clientY); else dragTo(e.clientX, e.clientY);
@@ -350,6 +355,7 @@ function brushStep(D, l) {
     pushUndo();
     D.cur = new Stroke(S.brush.color, S.brush.w, [tx, ty]);
     D.cur.t0 = performance.now();
+    Bird.wake();                                   // el primer trazo hace que «ibis» se arme como pájaro
     S.strokes.push(D.cur); D.lastTip = [tx, ty];
     return;
   }

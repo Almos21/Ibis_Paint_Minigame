@@ -1,4 +1,4 @@
-# ibis·Paint — juego de dibujo (fase 1: Paint)
+# ibis·Paint — juego de dibujo (Paint + el ibis)
 
 Proyecto **estudiantil, sin fines de lucro**, hecho con [p5.js](https://p5js.org/).
 No está afiliado, patrocinado ni respaldado por ibisPaint; el logo y la marca pertenecen a sus
@@ -41,17 +41,26 @@ js/util.js        utilidades matemáticas
 js/letters.js     clase Letter: arrastre, giro, escala, volteo y animaciones (tween)
 js/strokes.js     trazos vectoriales y los 12 efectos de la «a»
 js/sketch.js      p5: lienzo, entrada y herramientas P/i/a/n/t
-js/bird.js        GANCHO vacío para la fase 2 (el ibis)
+js/bird.js        el ibis: se arma con las letras «ibis» y actúa según el color del último trazo
 assets/logo.svg   logo original
 tools/build_glyphs.py   regenera js/glyphs.js desde el SVG (pip install svgelements)
-futuro/bird.wip.js      borrador sin terminar del pájaro, guardado para la fase 2
 ```
 
-## Cómo queda preparada la fase 2 (el ibis)
+## El ibis
 
-Las letras de **«ibis»** ya existen como objetos separados e independientes: `S.letters.i1`, `S.letters.b`,
-`S.letters.i2` y `S.letters.s`. Cada una tiene su pivote, posición, rotación, escala, volteo y animación
-(`startTween`). La `i` tiene el puntico (`dot`) como parte aparte —ojo— y el `b` guarda su «barriga» como pivote.
-Hoy se quedan quietas (la tecla `Enter` solo avisa que llega pronto); para el pájaro solo hay que llenar
-`js/bird.js` y moverlas. Los trazos del lienzo ya avisan al pájaro cuando la `t` mueve una línea
-(`Bird.carried`) para que pueda ir encima.
+Se despierta de tres formas: **al dibujar el primer trazo con la i**, **al tocar la palabra «ibis»** o con `Enter`.
+Las letras se arman como en el boceto: la primera **i** es la patica (el puntico es el pie), la **b** girada es el cuerpo,
+la **s** es el cuello y la segunda **i** es la cabeza (el puntico es el ojo y el palito el pico).
+
+Desde ahí es un agente propio: se mueve a saltitos y **solo cuenta el color del último trazo dibujado**.
+Si cambias de color, su comportamiento se reinicia; si borras ese trazo (o con `Ctrl+Z`), pasa a contar el trazo anterior.
+
+| Color (en el sentido del reloj desde el amarillo) | Comportamiento |
+|---|---|
+| amarillo `#f2f31e` | **Feliz**: sigue siempre la punta del último trazo, con saltitos altos y rápidos, cabeceando y con el ojo entrecerrado. |
+| naranja medio `#f3b318` | Lo sigue, pero **mientras se mueve crece y se encoge al azar**. |
+| naranja `#eb8118` | Lo sigue **muy lentamente**: saltitos cortos con pausas largas, adormilado. |
+| cualquier otro | Por ahora se queda quieto (respira, parpadea y a veces mira hacia el otro lado). |
+
+Los comportamientos están en la tabla `BEHAVIORS` de `js/bird.js`: para añadir uno nuevo basta una línea con el color
+del logo y sus parámetros (largo, altura y pausa de los saltitos, a qué distancia se detiene, etc.).
