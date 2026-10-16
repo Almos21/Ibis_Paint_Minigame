@@ -66,6 +66,9 @@ Si cambias de color, su comportamiento se reinicia; si borras ese trazo (o con `
 | azul oscuro `#1c76c3` | **Triste**: la sigue lento, con saltitos bajos y pausas largas; va agachado, medio cerrando los ojos, cabeceando despacito y soltando una lagrimita. |
 | azul `#229fe1` | **Flotando**: no salta; se desliza por el aire hacia la punta, subiendo y bajando suavemente, con la patica colgando y inclinándose hacia donde va. |
 | celeste `#16dcdb` | **Esquivo**: huye de la línea sin prisa. Si la línea lo toca, empieza a **brillar celeste intenso**; el brillo desaparece al cambiar de color. |
+| verde oscuro `#21af20` | **Devorador**: va a la punta más cercana de la línea y **se la come** (la línea se acorta mientras él mastica y suelta migajas). Con cada bocado **crece** poco a poco. Ctrl+Z devuelve la línea. |
+| verde medio `#7ed118` | **Mareado**: también se la come, pero cada bocado le pone la **cabeza más verde**, se tambalea, camina haciendo eses y ve estrellitas. Cuando ya no aguanta (o termina la línea) **vomita de vuelta el color**: deja un charquito de ese verde en el lienzo. |
+| verde neón `#b8ff1f` | **Radioactivo**: no persigue nada, pero entre más cerca esté de la línea más se le contagia el verde neón (brilla, suelta chispitas y tiembla). Si se aleja, vuelve a su color. |
 | cualquier otro | Por ahora se queda quieto (respira, parpadea y a veces mira hacia el otro lado). |
 
 Los comportamientos están en la tabla `BEHAVIORS` de `js/bird.js`: para añadir uno nuevo basta una línea con el color

@@ -94,14 +94,14 @@ function draw() {
     if (S.drag.carry) drawHalo(ctx, S.drag.carry, '#2d9cff', now);
   }
 
-  if (Bird.busy) {
-    Bird.drawShadow(ctx);
-    for (const l of Bird.parts) l.draw(ctx, DPR);
-    Bird.drawFX(ctx);
-  }
+  if (Bird.busy) Bird.drawShadow(ctx);
   for (const id of S.order) {
     if (Bird.busy && isIbis(id)) continue;
     S.letters[id].draw(ctx, DPR);
+  }
+  if (Bird.busy) {                                  // el pájaro va por encima de las letras de Paint
+    for (const l of Bird.parts) l.draw(ctx, DPR);
+    Bird.drawFX(ctx);
   }
   drawBrushTip(ctx);
   drawParticles(ctx);
