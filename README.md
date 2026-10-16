@@ -60,7 +60,10 @@ Si cambias de color, su comportamiento se reinicia; si borras ese trazo (o con `
 | amarillo `#f2f31e` | **Feliz**: sigue siempre la punta del último trazo, con saltitos altos y rápidos, cabeceando y con el ojo entrecerrado. |
 | naranja medio `#f3b318` | Lo sigue, pero **mientras se mueve crece y se encoge al azar**. |
 | naranja `#eb8118` | Lo sigue **muy lentamente**: saltitos cortos con pausas largas, adormilado. |
+| rojo `#e6511d` | **Enojado**: la persigue a grandes y fuertes saltos, con pisotones, ojos rojos, ceño fruncido y humito saliéndole de la cabeza. |
+| rosa `#df39a5` | **Enamorado**: sigue la línea dando vueltas sobre su propio eje (de perfil, de frente, de perfil...), con corazoncitos saliéndole de la cabeza. |
+| morado `#a632b5` | **Asustado**: huye de la línea (del punto de ella más cercano a su cuerpo) con saltos rápidos; tiene ojos enormes, tiembla y suda. Cuando ya está lejos se queda vigilándola, y si la línea se le acerca otra vez, vuelve a huir. |
 | cualquier otro | Por ahora se queda quieto (respira, parpadea y a veces mira hacia el otro lado). |
 
 Los comportamientos están en la tabla `BEHAVIORS` de `js/bird.js`: para añadir uno nuevo basta una línea con el color
-del logo y sus parámetros (largo, altura y pausa de los saltitos, a qué distancia se detiene, etc.).
+del logo y sus parámetros (largo, altura y pausa de los saltitos, a qué distancia se detiene, `flee` para huir, etc.). Los efectos (humo, corazones, sudor) están en `emitFX` y `drawFX`.

@@ -113,7 +113,7 @@ class Letter {
       if (p.k === 'dot') {
         const d = this.def.dot, colored = this.dotColor && this.dotColor !== '#000000';
         ctx.save();
-        if (this.eyeY < 0.999) { ctx.translate(d.cx, d.cy); ctx.scale(1, Math.max(0.06, this.eyeY)); ctx.translate(-d.cx, -d.cy); }
+        if (Math.abs(this.eyeY - 1) > 0.001) { ctx.translate(d.cx, d.cy); ctx.scale(1, Math.max(0.06, this.eyeY)); ctx.translate(-d.cx, -d.cy); }
         ctx.fillStyle = colored ? this.dotColor : '#000'; ctx.fill(p.path);
         if (colored) { ctx.shadowColor = 'transparent'; ctx.lineWidth = 4.5 * inv; ctx.strokeStyle = '#000'; ctx.stroke(p.path); }
         ctx.restore();

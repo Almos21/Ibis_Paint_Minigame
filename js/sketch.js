@@ -97,6 +97,7 @@ function draw() {
   if (Bird.busy) {
     Bird.drawShadow(ctx);
     for (const l of Bird.parts) l.draw(ctx, DPR);
+    Bird.drawFX(ctx);
   }
   for (const id of S.order) {
     if (Bird.busy && isIbis(id)) continue;

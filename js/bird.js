@@ -17,7 +17,8 @@
    Distancias en "alturas del pájaro" (BH). Los colores son los del logo, en minúscula.
      hopDist  largo de cada saltito        hopDur  segundos en el aire
      pause    descanso entre saltitos      hopH    altura del saltito
-     stop     a qué distancia de la punta se detiene                                      */
+     stop     a qué distancia de la punta se detiene
+     flee     en vez de seguir la línea, HUYE de ella;  safe = a qué distancia se calma (en BH)   */
 const BEHAVIORS = {
   // amarillo: feliz, sigue SIEMPRE la punta del último trazo, saltando contento
   '#f2f31e': { id: 'feliz', hopDist: 0.45, hopDur: 0.30, pause: 0.05, hopH: 0.17, stop: 0.22, happy: true },
@@ -25,6 +26,12 @@ const BEHAVIORS = {
   '#f3b318': { id: 'inquieto', hopDist: 0.45, hopDur: 0.32, pause: 0.12, hopH: 0.13, stop: 0.22, wobble: true },
   // el otro naranja: lo sigue, pero muy lentamente
   '#eb8118': { id: 'lento', hopDist: 0.13, hopDur: 0.55, pause: 1.4, hopH: 0.06, stop: 0.22, sleepy: true },
+  // rojo: enojado, la persigue a grandes y fuertes saltos, con humito saliéndole de la cabeza
+  '#e6511d': { id: 'enojado', hopDist: 0.95, hopDur: 0.40, pause: 0.16, hopH: 0.30, stop: 0.22, angry: true },
+  // rosa: enamorado, sigue la línea dando vueltas sobre su propio eje, con corazoncitos
+  '#df39a5': { id: 'enamorado', hopDist: 0.34, hopDur: 0.42, pause: 0.05, hopH: 0.13, stop: 0.22, love: true },
+  // morado: asustado, huye de la línea (con sudor, ojos grandes y temblando)
+  '#a632b5': { id: 'asustado', flee: true, hopDist: 0.75, hopDur: 0.26, pause: 0.04, hopH: 0.20, safe: 1.15, scared: true },
 };
 const BEHAVIOR_IDLE = { id: 'quieto', idle: true };   // cualquier otro color (por ahora)
 
@@ -93,6 +100,8 @@ const Bird = {
   B: BEHAVIOR_IDLE, curColor: undefined, target: null, pendingReact: null, moving: false,
   a: { ...ZERO_ANIM },
   blinkNext: 0, blinkU: -1, eyeBase: 1,
+  fx: [], fxAcc: { smoke: 0, heart: 0, drop: 0 },   // humito, corazones, gotas de sudor...
+  spin: 0, near: null,
 
   get BH() { return BIRD_UNITS * this.baseS; },                      // altura "normal" en px
   get parts() { const L = S.letters; return [L.i1, L.b, L.s, L.i2]; }, // orden de dibujo
@@ -135,6 +144,8 @@ const Bird = {
     this.watch();
     this.think(dt, now);
     this.animate(dt, now);
+    this.emitFX(dt);
+    this.updateFX(dt);
   },
 
   /** ¿cuál es el último trazo y de qué color? Si cambia el color, el comportamiento se reinicia. */
@@ -174,21 +185,31 @@ const Bird = {
         this.wait = (B.pause !== undefined ? B.pause : 0.3) * (0.8 + Math.random() * 0.4);
         puff(this.F.x, this.F.y, '#cfcfcf', 3);
         if (B.happy && this.target) puff(this.F.x, this.F.y - BH * 0.55, '#f2f31e', 3);
-        if (H.react) puff(this.F.x, this.F.y - BH * 0.55, H.react, 9);
+        if (B.angry) for (let i = 0; i < 6; i++) puff(this.F.x + rnd(-25, 25) * this.sizeMul, this.F.y, '#b9b9b9', 1);  // pisotón
+        if (H.react) { puff(this.F.x, this.F.y - BH * 0.55, H.react, 9); this.reactFX(B); }
       }
       this.moving = true;
     } else {
       this.landT = Math.max(0, this.landT - dt);
       this.wait -= dt;
       this.moving = false;
+      const last = S.strokes[S.strokes.length - 1];
       const minY = BH * this.sizeMul * 0.95;
       const tx = this.target ? clamp(this.target[0], 40, VW - 40) : 0, ty = this.target ? clamp(this.target[1], minY, VH - 8) : 0;
       const dx = tx - this.F.x, dy = ty - this.F.y, dist = Math.hypot(dx, dy);
-      if (this.target && !B.idle) this.moving = dist > B.stop * BH;   // "se mueve" = aún le falta llegar
+      if (B.flee) {                                   // amenaza = el punto de la línea más cercano al cuerpo
+        this.near = last ? nearestOnStroke(last, this.F.x, this.F.y - 0.35 * BH * this.sizeMul) : null;
+        this.moving = !!this.near && this.near.d < B.safe * BH * this.sizeMul;
+      } else {
+        this.near = null;
+        if (this.target && !B.idle) this.moving = dist > B.stop * BH;   // "se mueve" = aún le falta llegar
+      }
       if (this.wait <= 0) {
         if (this.pendingReact) {
           const react = this.pendingReact; this.pendingReact = null;
           this.startHop(1, 0, 0, 0.4, 0.2); this.hopSt.react = react;
+        } else if (B.flee) {
+          this.flee(B);
         } else if (!B.idle && this.target) {
           const stop = B.stop * BH;
           if (dist > stop) {
@@ -198,6 +219,11 @@ const Bird = {
           } else if (B.happy) {                       // llegó: bailecito de alegría en su sitio
             if (Math.abs(dx) > 6) this.face = dx > 0 ? 1 : -1;
             this.startHop(1, 0, 0, 0.3, 0.07); this.wait = 0.12;
+          } else if (B.love) {                        // llegó: flota suspirando mientras sigue girando
+            this.startHop(1, 0, 0, 0.5, 0.05); this.wait = 0.25;
+          } else if (B.angry) {                       // llegó: patalea de rabia en su sitio
+            if (Math.abs(dx) > 6) this.face = dx > 0 ? 1 : -1;
+            this.startHop(1, 0, 0, 0.3, 0.10); this.wait = 0.1;
           } else this.wait = 0.25;
         } else {                                      // quieto: de vez en cuando mira hacia el otro lado
           this.wait = 2 + Math.random() * 3.5;
@@ -216,6 +242,29 @@ const Bird = {
     this.F.y = clamp(this.F.y, this.BH * this.sizeMul * 0.9, VH - 8);
   },
 
+  /** Asustado: salta lejos del punto de la línea más cercano (y se pega a las paredes lo menos posible). */
+  flee(B) {
+    const BH = this.BH, m = this.sizeMul, near = this.near;
+    if (!near) { this.wait = 0.3; return; }
+    if (near.d >= B.safe * BH * m) {                  // ya está lejos: se queda temblando, vigilando la línea
+      if (Math.abs(near.x - this.F.x) > 8) this.face = near.x > this.F.x ? 1 : -1;
+      this.wait = 0.2; return;
+    }
+    let ax = this.F.x - near.x, ay = this.F.y - 0.35 * BH * m - near.y;
+    const al = Math.hypot(ax, ay);
+    if (al < 1e-3) { const r = Math.random() * TWOPI; ax = Math.cos(r); ay = Math.sin(r); } else { ax /= al; ay /= al; }
+    const len = B.hopDist * BH * (0.85 + Math.random() * 0.3), minY = BH * m * 0.95;
+    let best = null;
+    for (const off of [0, 0.5, -0.5, 1.1, -1.1, 1.8, -1.8, Math.PI]) {   // si choca con un borde, rodea
+      const c = Math.cos(off), s = Math.sin(off), dx = ax * c - ay * s, dy = ax * s + ay * c;
+      const ex = clamp(this.F.x + dx * len, 40, VW - 40), ey = clamp(this.F.y + dy * len, minY, VH - 8);
+      const score = Math.hypot(ex - near.x, ey - 0.35 * BH * m - near.y) - Math.abs(off) * len * 0.12;
+      if (!best || score > best.score) best = { dx, dy, score };
+    }
+    if (Math.abs(best.dx) > 0.1) this.face = best.dx > 0 ? 1 : -1;
+    this.startHop(best.dx, best.dy, len, B.hopDur * (0.9 + Math.random() * 0.2), B.hopH);
+  },
+
   animate(dt, now) {
     const B = this.B, H = this.hopSt, a = this.a;
     const prep = !!H && H.t < 0, air = !!H && H.t >= 0;
@@ -224,12 +273,12 @@ const Bird = {
 
     // agacharse antes de saltar, estirarse en el aire, "aplastarse" al caer
     const crouchT = prep ? 1 : air ? -0.3 : this.landT > 0 ? 0.9 : 0;
-    a.crouch = approach(a.crouch, crouchT * 26, 24, dt);
+    a.crouch = approach(a.crouch, crouchT * (B.angry ? 36 : 26), 24, dt);
     a.leg = approach(a.leg, air ? 0.62 : 0, 20, dt);
 
     const sway = Math.sin(now * 1.7);
     let bodyT = 0.012 * Math.sin(now * 2.1), neckT = 0.035 * sway, headT = 0.05 * Math.sin(now * 1.1 + 1), tiltT = 0;
-    if (air) { neckT = 0.15; headT = -0.05; tiltT = this.face * 0.10; }
+    if (air) { neckT = 0.15; headT = -0.05; tiltT = this.face * (B.angry ? 0.16 : 0.10); }
     else if (this.landT > 0) { neckT = -0.09; }
     if (B.happy) {                                    // contento: se contonea y cabecea rápido
       bodyT += 0.07 * Math.sin(now * 15); headT += 0.12 * Math.sin(now * 11);
@@ -237,25 +286,139 @@ const Bird = {
     if (B.sleepy) {                                   // adormilado: cabeza caída y movimientos lentos
       neckT = -0.12 + 0.03 * Math.sin(now * 0.9); headT = 0.22 + 0.06 * Math.sin(now * 0.8);
     }
+    if (B.angry) {                                    // furioso: cuello hacia adelante, cabeza gacha
+      neckT += 0.10; headT += 0.14;
+    }
+    if (B.love) {                                     // enamorado: cabeza ladeada, suspirando
+      headT += -0.10 + 0.08 * Math.sin(now * 2.6); neckT += 0.03 * Math.sin(now * 2.6 + 1);
+    }
+    if (B.scared) {                                   // asustado: cuello encogido hacia atrás
+      neckT += -0.16; headT += -0.12;
+    }
     a.body = approach(a.body, bodyT, 14, dt);
     a.neck = approach(a.neck, neckT, 12, dt);
     a.head = approach(a.head, headT, 12, dt);
     this.tilt = approach(this.tilt, tiltT, 12, dt);
-    this.flipv = approach(this.flipv, this.face, 14, dt);
-    if (Math.abs(this.flipv - this.face) < 0.01) this.flipv = this.face;
+    if (B.love) {                                     // vueltas sobre su propio eje (de perfil -> de frente -> de perfil...)
+      this.spin += dt * TWOPI * 1.15;
+      this.flipv = approach(this.flipv, Math.cos(this.spin), 25, dt);
+    } else {
+      this.spin = 0;
+      this.flipv = approach(this.flipv, this.face, 14, dt);
+      if (Math.abs(this.flipv - this.face) < 0.01) this.flipv = this.face;
+    }
 
-    // ojo (el puntico de la i-cabeza): entrecerrado si está feliz o con sueño; parpadea de vez en cuando
+    // ojo (el puntico de la i-cabeza): entrecerrado si está feliz o con sueño, enorme si se asusta; parpadea
     const eye = S.letters[BL.head.id];
-    this.eyeBase = approach(this.eyeBase, B.happy ? 0.5 : B.sleepy ? 0.3 : 1, 10, dt);
-    if (now > this.blinkNext) { this.blinkU = 0; this.blinkNext = now + 2 + Math.random() * 3.5; }
+    const eyeT = B.scared ? 1.55 : B.happy ? 0.5 : B.sleepy ? 0.3 : B.angry ? 0.75 : 1;
+    this.eyeBase = approach(this.eyeBase, eyeT, 10, dt);
+    if (now > this.blinkNext) { this.blinkU = 0; this.blinkNext = now + (B.scared ? 4 : 2) + Math.random() * 3.5; }
     let blink = 1;
     if (this.blinkU >= 0) { this.blinkU += dt / 0.16; if (this.blinkU >= 1) this.blinkU = -1; else blink = 1 - Math.sin(this.blinkU * Math.PI) * 0.95; }
-    eye.eyeY = Math.max(0.06, Math.min(this.eyeBase, 1) * blink);
+    eye.eyeY = clamp(this.eyeBase * blink, 0.06, 1.6);
+    eye.dotColor = B.angry ? '#e6511d' : B.love ? '#df39a5' : null;   // ojos rojos de rabia / rosados de amor
+
+    // temblor (rabia y miedo)
+    const amp = (B.scared ? 1.6 : B.angry ? 0.9 : 0) * this.sizeMul;
+    const jx = amp ? (Math.random() - 0.5) * 2 * amp : 0, jy = amp ? (Math.random() - 0.5) * amp : 0;
 
     const pose = birdPose(this, a);
     for (const part of ['leg', 'body', 'neck', 'head']) {
       const l = S.letters[BL[part].id], p = pose[part];
-      l.x = p.x; l.y = p.y; l.rot = p.rot; l.scl = p.scl; l.flip = p.flip;
+      l.x = p.x + jx; l.y = p.y + jy; l.rot = p.rot; l.scl = p.scl; l.flip = p.flip;
+    }
+  },
+
+  /* ---------------------------------------------------------------- efectos: humito, corazones, sudor */
+  headPos() { const t = S.letters[BL.head.id].tip(); return { x: t[0], y: t[1] }; },
+
+  emitFX(dt) {
+    const B = this.B, A = this.fxAcc, k = this.sizeMul, BH = this.BH * k, e = this.headPos();
+    if (B.angry) {
+      A.smoke += dt * 22;
+      while (A.smoke >= 1) {
+        A.smoke -= 1;
+        this.fx.push({ k: 'smoke', x: e.x + rnd(-4, 4) * k, y: e.y - BH * 0.04, vx: rnd(-12, 12), vy: -rnd(45, 85), age: 0, max: rnd(0.9, 1.5), r0: BH * 0.012 + 2, r1: BH * 0.05 + 5 });
+      }
+    } else A.smoke = 0;
+    if (B.love) {
+      A.heart += dt * 3.4;
+      while (A.heart >= 1) { A.heart -= 1; this.addHeart(e); }
+    } else A.heart = 0;
+    if (B.scared) {
+      A.drop += dt * (this.moving ? 8 : 3.5);
+      while (A.drop >= 1) {
+        A.drop -= 1;
+        const sg = Math.random() < 0.5 ? -1 : 1;
+        this.fx.push({ k: 'drop', x: e.x + sg * rnd(2, 8) * k, y: e.y - BH * 0.03, vx: sg * rnd(25, 70), vy: -rnd(40, 100), age: 0, max: rnd(0.7, 1.1), size: rnd(2.2, 3.6) * Math.max(0.6, BH / 240) });
+      }
+    } else A.drop = 0;
+    if (this.fx.length > 160) this.fx.splice(0, this.fx.length - 160);
+  },
+
+  addHeart(e) {
+    const BH = this.BH * this.sizeMul;
+    this.fx.push({ k: 'heart', x: e.x + rnd(-6, 6) * this.sizeMul, y: e.y - BH * 0.05, vx: rnd(-14, 14), vy: -rnd(36, 62), age: 0, max: rnd(1.3, 1.9), size: rnd(4.5, 8) * Math.max(0.7, BH / 240), ph: rnd(0, TWOPI), col: Math.random() < 0.35 ? '#ff8fcf' : '#df39a5' });
+  },
+
+  /** reacción al cambiar de color (al terminar el saltito de sorpresa) */
+  reactFX(B) {
+    const e = this.headPos(), BH = this.BH * this.sizeMul;
+    if (B.angry) for (let i = 0; i < 9; i++) this.fx.push({ k: 'smoke', x: e.x + rnd(-8, 8), y: e.y - BH * 0.04, vx: rnd(-40, 40), vy: -rnd(40, 110), age: 0, max: rnd(0.9, 1.5), r0: BH * 0.02 + 3, r1: BH * 0.07 + 6 });
+    else if (B.love) for (let i = 0; i < 6; i++) this.addHeart(e);
+    else if (B.scared) this.fx.push({ k: 'bang', x: e.x, y: e.y - BH * 0.12, age: 0, max: 1.0 });
+  },
+
+  updateFX(dt) {
+    for (const p of this.fx) {
+      p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.k === 'drop') p.vy += 300 * dt;
+      else if (p.k === 'smoke') { p.vx *= 0.99; p.vy *= 0.996; }
+      else if (p.k === 'heart') p.x += Math.sin(p.age * 5 + p.ph) * 14 * dt;
+    }
+    this.fx = this.fx.filter((p) => p.age < p.max);
+  },
+
+  drawFX(ctx) {
+    if (!this.busy) return;
+    ctx.save();
+    for (const p of this.fx) {
+      const u = p.age / p.max;
+      if (p.k === 'smoke') {
+        const r = p.r0 + (p.r1 - p.r0) * Math.sqrt(u);
+        ctx.fillStyle = `rgba(88,88,92,${0.5 * Math.pow(1 - u, 1.3)})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TWOPI); ctx.fill();
+        ctx.fillStyle = `rgba(40,40,44,${0.28 * Math.pow(1 - u, 1.6)})`;
+        ctx.beginPath(); ctx.arc(p.x - r * 0.2, p.y + r * 0.15, r * 0.55, 0, TWOPI); ctx.fill();
+      } else if (p.k === 'heart') {
+        const sc = p.size * (u < 0.15 ? u / 0.15 : 1), rot = Math.sin(p.age * 4 + p.ph) * 0.3;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(rot); ctx.scale(sc, sc);
+        ctx.globalAlpha = 1 - Math.pow(u, 3); ctx.fillStyle = p.col;
+        ctx.beginPath(); ctx.moveTo(0, 0.9); ctx.bezierCurveTo(-1.6, -0.2, -0.7, -1.3, 0, -0.4); ctx.bezierCurveTo(0.7, -1.3, 1.6, -0.2, 0, 0.9); ctx.fill();
+        ctx.restore();
+      } else if (p.k === 'drop') {
+        const sz = p.size;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.globalAlpha = 1 - Math.pow(u, 3);
+        ctx.fillStyle = '#8fd3ff'; ctx.strokeStyle = '#3b9ae6'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(0, -sz * 1.5); ctx.quadraticCurveTo(sz * 1.1, 0, 0, sz); ctx.quadraticCurveTo(-sz * 1.1, 0, 0, -sz * 1.5); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      } else if (p.k === 'bang') {                      // "¡!" de susto sobre la cabeza
+        const pop = 1 + 0.35 * Math.sin(Math.min(1, u * 5) * Math.PI), k = this.sizeMul;
+        ctx.save(); ctx.translate(p.x, p.y - Math.min(u * 14, 8)); ctx.scale(pop * k, pop * k); ctx.globalAlpha = 1 - Math.pow(u, 4);
+        ctx.lineCap = 'round'; ctx.strokeStyle = '#a632b5'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(0, -17); ctx.lineTo(0, -5); ctx.stroke();
+        ctx.fillStyle = '#a632b5'; ctx.beginPath(); ctx.arc(0, 3, 3, 0, TWOPI); ctx.fill();
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+    // ceño fruncido (rojo): una rayita inclinada sobre el ojo
+    if (this.state === 'alive' && this.B.angry && Math.abs(this.flipv) > 0.5) {
+      const l = S.letters[BL.head.id], e = this.headPos(), r = Math.max(3, l.def.dot.r * l.scl), f = Math.sign(this.flipv);
+      ctx.save();
+      ctx.strokeStyle = '#000'; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(2, r * 0.8);
+      ctx.beginPath(); ctx.moveTo(e.x - f * r * 1.3, e.y - r * 2.3); ctx.lineTo(e.x + f * r * 1.4, e.y - r * 1.15); ctx.stroke();
+      ctx.restore();
     }
   },
 
@@ -269,5 +432,22 @@ const Bird = {
     ctx.beginPath(); ctx.ellipse(this.F.x, this.F.y + 2, this.BH * 0.17 * k, this.BH * 0.03 * k, 0, 0, TWOPI); ctx.fill();
     ctx.restore();
   },
-
 };
+
+/** punto de la polilínea de un trazo más cercano a (cx, cy): {x, y, d} */
+function nearestOnStroke(s, cx, cy) {
+  const p = s.pts, n = p.length / 2;
+  if (n === 0) return null;
+  if (n === 1) return { x: p[0], y: p[1], d: Math.hypot(cx - p[0], cy - p[1]) };
+  let best = { x: p[0], y: p[1], d: Infinity };
+  const step = n > 1500 ? Math.ceil(n / 1500) : 1;
+  for (let k = 0; k < n - 1; k += step) {
+    const k2 = Math.min(n - 1, k + step);
+    const ax = p[2 * k], ay = p[2 * k + 1], vx = p[2 * k2] - ax, vy = p[2 * k2 + 1] - ay, L2 = vx * vx + vy * vy;
+    let t = L2 ? ((cx - ax) * vx + (cy - ay) * vy) / L2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const qx = ax + vx * t, qy = ay + vy * t, d = Math.hypot(cx - qx, cy - qy);
+    if (d < best.d) best = { x: qx, y: qy, d };
+  }
+  return best;
+}
